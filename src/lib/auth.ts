@@ -82,6 +82,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
 
   callbacks: {
+    authorized({ auth: session, request }) {
+      const isLoggedIn = !!session?.user
+      const isProtected = request.nextUrl.pathname.startsWith("/ideas/new") ||
+        request.nextUrl.pathname.startsWith("/mypage") ||
+        request.nextUrl.pathname.startsWith("/profile") ||
+        request.nextUrl.pathname.startsWith("/admin")
+
+      if (isProtected && !isLoggedIn) {
+        return false // redirect to login
+      }
+      return true // allow access
+    },
+
     async jwt({ token, user }) {
       if (user) {
         token.sub = user.id
