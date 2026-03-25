@@ -1,0 +1,219 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────
+
+enum Role {
+  CHILD
+  PARENT
+  GENERAL
+  MENTOR
+  ADMIN
+}
+
+enum IdeaCategory {
+  LIFE
+  SCHOOL
+  PLAY
+  HEALTH
+  ENVIRONMENT
+  OTHER
+}
+
+enum IdeaStatus {
+  DRAFT
+  PENDING
+  PUBLISHED
+  SELECTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum IdeaStage {
+  SEED
+  SPROUT
+  TREE
+  FLOWER
+  FRUIT
+}
+
+enum VotingPeriodStatus {
+  UPCOMING
+  ACTIVE
+  ENDED
+}
+
+enum EventStatus {
+  UPCOMING
+  OPEN
+  CLOSED
+  COMPLETED
+}
+
+enum ReportStatus {
+  PENDING
+  RESOLVED
+  DISMISSED
+}
+
+// ─────────────────────────────────────────────
+// NextAuth / Auth.js v5 required models
+// ─────────────────────────────────────────────
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─────────────────────────────────────────────
+// Application models
+// ─────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  nickname      String?
+  role          Role      @default(GENERAL)
+
+  // Self-relation: parent ↔ children
+  parentId  String?
+  parent    User?   @relation("ParentChildren", fields: [parentId], references: [id])
+  children  User[]  @relation("ParentChildren")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // NextAuth relations
+  accounts Account[]
+  sessions Session[]
+
+  // Application relations
+  ideas         Idea[]
+  votes         Vote[]
+  notifications Notification[]
+  reports       Report[]
+}
+
+model Idea {
+  id          String       @id @default(cuid())
+  title       String
+  description String       @db.Text
+  category    IdeaCategory
+  authorId    String
+  status      IdeaStatus   @default(DRAFT)
+  stage       IdeaStage    @default(SEED)
+  voteCount   Int          @default(0)
+  images      String[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  author  User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  votes   Vote[]
+  reports Report[]
+}
+
+model Vote {
+  id        String   @id @default(cuid())
+  userId    String
+  ideaId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  idea Idea @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, ideaId])
+}
+
+model VotingPeriod {
+  id        String             @id @default(cuid())
+  title     String
+  startDate DateTime
+  endDate   DateTime
+  status    VotingPeriodStatus @default(UPCOMING)
+  createdAt DateTime           @default(now())
+}
+
+model Event {
+  id              String      @id @default(cuid())
+  title           String
+  description     String      @db.Text
+  location        String
+  eventDate       DateTime
+  capacity        Int
+  registeredCount Int         @default(0)
+  status          EventStatus @default(UPCOMING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  body      String   @db.Text
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Report {
+  id         String       @id @default(cuid())
+  reporterId String
+  ideaId     String
+  reason     String       @db.Text
+  status     ReportStatus @default(PENDING)
+  createdAt  DateTime     @default(now())
+
+  reporter User @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  idea     Idea @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+}
